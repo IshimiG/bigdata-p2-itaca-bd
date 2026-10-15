@@ -1,0 +1,18 @@
+# Datos y credenciales (NO subir nunca)
+.env
+.env.*
+!.env.example
+data/
+docker-volumes/
+*.pem
+
+# Entornos Python
+.venv/
+__pycache__/
+*.pyc
+
+# Notebooks
+.ipynb_checkpoints/
+
+# MkDocs
+site/
