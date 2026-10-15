@@ -39,9 +39,11 @@ graph LR
 
 ```bash
 cp .env.example .env           # rellena las credenciales
-docker compose up -d
+./scripts/levantar.sh          # levanta PostgreSQL y carga data/seed/*.sql
 docker compose ps
 ```
+
+`scripts/cargar_datos.sh` se puede ejecutar cuantas veces haga falta: no borra nada y salta las tablas ya cargadas. Si una tabla existe con otro número de filas, se detiene sin tocarla.
 
 Conexión local: `localhost:5432`, base y usuario definidos en `.env`.
 
