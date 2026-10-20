@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Carga incremental de data/seed/*.sql en PostgreSQL.
 #
+# Antes de cargar, une los ficheros por curso de data/anual/ (<entidad>_AAAA_AA.sql)
+# en una sola tabla por entidad (alumnos, calificaciones, contenidos, cursos, grupos),
+# con la columna anyo que ya trae cada fichero. Genera data/seed/<entidad>.sql.
+#
 # Cada fichero cargado queda anotado en la tabla _registro_cargas (nombre, sha256,
 # filas y fecha). En cada ejecución:
 #   - fichero nuevo            -> se carga en una transacción y se registra
@@ -26,6 +30,36 @@ psql_sql "CREATE TABLE IF NOT EXISTS _registro_cargas (
   filas integer NOT NULL,
   cargado_en timestamptz NOT NULL DEFAULT now()
 );" >/dev/null
+
+# Une data/anual/<entidad>_*.sql en $SEED_DIR/<entidad>.sql: un CREATE TABLE (el del
+# primer curso) seguido de los INSERT de todos los cursos, en orden. Es determinista:
+# mismos ficheros de origen, mismo sha256.
+unir_anual() {
+  local entidad f out total create
+  for entidad in alumnos calificaciones contenidos cursos grupos; do
+    local origenes=("data/anual/${entidad}"_*.sql)
+    [ -e "${origenes[0]}" ] || continue
+    out="$SEED_DIR/$entidad.sql"
+    total=0
+    for f in "${origenes[@]}"; do
+      total=$((total + $(grep -oE '· [0-9]+ filas' "$f" | grep -oE '[0-9]+')))
+    done
+    {
+      echo "-- Consolidado de ${#origenes[@]} cursos (data/anual/${entidad}_*.sql) · $total filas"
+      echo
+      awk '/^CREATE TABLE/{c=1} c&&/^\);/{c=0; exit} c' "${origenes[0]}" \
+        | sed -E "s/^CREATE TABLE ${entidad}_[0-9_]+ /CREATE TABLE ${entidad} /"
+      echo ");"
+      for f in "${origenes[@]}"; do
+        awk '/^CREATE TABLE/{c=1} c&&/^\);/{c=0; b=1; next} b' "$f" \
+          | sed -E "s/^INSERT INTO ${entidad}_[0-9_]+ /INSERT INTO ${entidad} /"
+      done
+    } > "$out.tmp"
+    mv "$out.tmp" "$out"
+    echo "UNIDO    $entidad.sql ($total filas, ${#origenes[@]} cursos)"
+  done
+}
+unir_anual
 
 for f in "$SEED_DIR"/*.sql; do
   nombre=$(basename "$f")

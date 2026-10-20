@@ -43,7 +43,9 @@ cp .env.example .env           # rellena las credenciales
 docker compose ps
 ```
 
-`scripts/cargar_datos.sh` se puede ejecutar cuantas veces haga falta: no borra nada y salta las tablas ya cargadas. Si una tabla existe con otro número de filas, se detiene sin tocarla.
+Los datos de origen están por curso en `data/anual/<entidad>_AAAA_AA.sql` (2021-22 a 2025-26). `scripts/cargar_datos.sh` los une en una tabla por entidad (`alumnos`, `calificaciones`, `contenidos`, `cursos`, `grupos`), con la columna `anyo` para filtrar por curso, y carga esas tablas.
+
+`scripts/cargar_datos.sh` se puede ejecutar cuantas veces haga falta: no borra nada y salta las tablas ya cargadas. Si una tabla existe con otro número de filas, o un fichero de origen cambia y con él la tabla unida, se detiene sin tocarla.
 
 Conexión local: `localhost:5432`, base y usuario definidos en `.env`.
 
