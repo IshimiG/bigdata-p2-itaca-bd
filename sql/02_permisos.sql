@@ -8,7 +8,10 @@ BEGIN
 END
 $$;
 
+-- Por defecto PUBLIC puede conectar y crear tablas temporales: se retira y se da solo lo necesario
+REVOKE ALL ON DATABASE itaca_academico FROM PUBLIC;
 GRANT CONNECT ON DATABASE itaca_academico TO lectura_bigdata;
 GRANT USAGE ON SCHEMA public TO lectura_bigdata;
--- DROP TABLE + CREATE TABLE de los SQL del profesor borra los privilegios: se vuelven a dar
+-- DROP TABLE + CREATE TABLE de los SQL del profesor borra los privilegios: se vuelven a dar.
+-- SELECT a nivel de tabla (necesario para SELECT *)
 GRANT SELECT ON alumnos, cursos, calificaciones, contenidos, grupos TO lectura_bigdata;
