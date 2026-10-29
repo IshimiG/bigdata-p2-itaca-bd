@@ -1,0 +1,32 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: bigdata-pg-itaca
+    environment:
+      POSTGRES_DB: ${DB_NAME:-itaca_academico}
+      POSTGRES_USER: ${DB_ADMIN_USER:-itaca_admin}
+      POSTGRES_PASSWORD: ${DB_ADMIN_PASSWORD:?define DB_ADMIN_PASSWORD en .env}
+      # contraseña del usuario de solo lectura (la aplica sql/03_password_lectura.sh)
+      DB_USER: ${DB_USER:-lectura_bigdata}
+      DB_PASSWORD: ${DB_PASSWORD:?define DB_PASSWORD en .env}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - pg-itaca-data:/var/lib/postgresql/data
+      - ./sql/01_esquema.sql:/docker-entrypoint-initdb.d/01_esquema.sql:ro
+      - ./sql/02_permisos.sql:/docker-entrypoint-initdb.d/02_permisos.sql:ro
+      - ./sql/03_password_lectura.sh:/docker-entrypoint-initdb.d/03_password_lectura.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_ADMIN_USER:-itaca_admin} -d ${DB_NAME:-itaca_academico}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - bigdata-net
+
+volumes:
+  pg-itaca-data:
+
+networks:
+  bigdata-net:
+    driver: bridge
