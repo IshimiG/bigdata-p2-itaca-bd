@@ -1,7 +1,8 @@
 """Ingesta de ITACA desde la réplica PostgreSQL a la zona raw (JSON).
 
 Se conecta con psycopg2 (el equivalente Python de JDBC) con el usuario de solo lectura,
-lee cada tabla, anonimiza el NIA (HMAC-SHA256 con sal secreta) y guarda
+lee cada tabla pidiendo SOLO las columnas no personales (los datos personales ni siquiera
+salen de la base de datos), anonimiza el NIA (HMAC-SHA256 con sal secreta) y guarda
 data/raw/<tabla>_<fecha>.json. Las credenciales salen de .env, nunca del código.
 """
 import hashlib
@@ -25,9 +26,24 @@ logger = crear_logger("ingesta_itaca_bd")
 
 DIR_RAW = "data/raw"
 FICHERO_SAL = "data/.sal_nia"
-TABLAS = ["alumnos", "cursos", "calificaciones", "contenidos", "grupos"]
-CAMPOS_NIA = {"NIA", "alumno"}  # columnas con el NIA, que se anonimizan
-COLUMNAS_TECNICAS = {"id"}      # claves artificiales de la réplica: no forman parte del dato
+# Columnas que se ingestan por tabla, en el orden de salida. Lo que no está aquí no se lee:
+# alumnos tiene nombre, apellidos, fecha_nac, documento, teléfonos, emails, sip, expediente,
+# cod_postal, localidad, pais_nac y municipio_nac (datos personales o casi-identificadores),
+# más matricula_parcial/matricula_condic (vacías o sin uso en el modelo); grupos.aula se
+# descarta por ser operativa y estar vacía en casi la mitad de los grupos.
+COLUMNAS = {
+    "alumnos": ["nia", "sexo", "nacionalidad", "provincia", "municipio", "ensenanza", "curso",
+                "grupo", "turno", "linea", "modalidad", "repite", "estado_matricula",
+                "tipo_matricula", "fecha_matricula", "fecha_ingreso_centro", "anyo"],
+    "cursos": ["codigo", "nombre_cas", "nombre_val", "abreviatura", "ensenanza", "padre", "anyo"],
+    "calificaciones": ["evaluacion", "alumno", "ensenanza", "curso", "contenido",
+                       "bloque_contenido", "nota_numerica", "tipo_nota", "anyo"],
+    "contenidos": ["codigo", "nombre_cas", "nombre_val", "ensenanza", "curso", "anyo"],
+    "grupos": ["codigo", "nombre", "ensenanza", "turno", "linea", "modalidad", "capacidad", "anyo"],
+}
+TABLAS = list(COLUMNAS)
+# columna con el NIA en cada tabla -> nombre de salida (se anonimiza)
+CAMPOS_NIA = {"alumnos": ("nia", "NIA"), "calificaciones": ("alumno", "alumno")}
 
 
 def conectar():
@@ -52,16 +68,21 @@ def conectar():
 
 
 def extraer_tabla(conexion, tabla: str) -> list[dict]:
-    """SELECT * de la tabla (nombre como identificador, no concatenado) -> lista de dicts.
+    """SELECT de las columnas permitidas de la tabla -> lista de dicts.
 
-    El ORDER BY por las tres primeras columnas hace la salida determinista.
+    Tabla y columnas van como identificadores (psycopg2.sql), no concatenadas. El enunciado
+    pide un SELECT *, pero aquí se listan las columnas para que los datos personales no salgan
+    de la base. El ORDER BY por todas las columnas hace la salida determinista.
     """
-    consulta = sql.SQL("SELECT * FROM {} ORDER BY 1, 2, 3").format(sql.Identifier(tabla))
+    columnas = sql.SQL(", ").join(sql.Identifier(c) for c in COLUMNAS[tabla])
+    consulta = sql.SQL("SELECT {} FROM {} ORDER BY {}").format(
+        columnas, sql.Identifier(tabla), columnas)
     inicio = time.perf_counter()
     with conexion.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute(consulta)
-        filas = [{k: v for k, v in fila.items() if k not in COLUMNAS_TECNICAS} for fila in cur.fetchall()]
-    logger.info("%s: %d filas leídas en %.2f s", tabla, len(filas), time.perf_counter() - inicio)
+        filas = [dict(fila) for fila in cur.fetchall()]
+    logger.info("%s: %d filas leídas (%d columnas) en %.2f s", tabla, len(filas),
+                len(COLUMNAS[tabla]), time.perf_counter() - inicio)
     return filas
 
 
@@ -91,15 +112,23 @@ class Anonimizador:
         return self.cache[nia]
 
 
-def anonimizar_filas(filas: list[dict], anonimizar) -> None:
-    """Sustituye in situ el NIA por su hash; el texto vacío pasa a null."""
-    for fila in filas:
+def limpiar_y_anonimizar(tabla: str, filas: list[dict], anonimizar) -> None:
+    """Texto sin espacios sobrantes (' ' y '' pasan a null) y NIA sustituido por su hash.
+
+    En el origen todo es TEXT y los vacíos vienen como un espacio; la columna del NIA de
+    alumnos se renombra a NIA (como en la P1).
+    """
+    origen, salida = CAMPOS_NIA.get(tabla, (None, None))
+    for n, fila in enumerate(filas):
+        nueva = {}
         for campo, valor in fila.items():
             if isinstance(valor, str):
                 valor = valor.strip() or None
-                fila[campo] = valor
-            if campo in CAMPOS_NIA and valor:
-                fila[campo] = anonimizar(valor)
+            if campo == origen:  # se mantiene la posición de la columna
+                nueva[salida] = anonimizar(valor) if valor else None
+            else:
+                nueva[campo] = valor
+        filas[n] = nueva
 
 
 def guardar(datos: list[dict], nombre: str) -> str:
@@ -118,16 +147,19 @@ CONSULTAS_INTEGRIDAD = [
      "SELECT count(*) FROM calificaciones c LEFT JOIN contenidos m "
      "ON (m.anyo, m.curso, m.codigo) = (c.anyo, c.curso, c.contenido) WHERE m.codigo IS NULL"),
     ("alumnos.grupo -> grupos",
-     "SELECT count(*) FROM alumnos a LEFT JOIN grupos g ON (g.anyo, g.codigo) = (a.anyo, a.grupo) "
-     "WHERE a.grupo IS NOT NULL AND g.codigo IS NULL"),
+     "SELECT count(*) FROM alumnos a LEFT JOIN grupos g "
+     "ON (g.anyo, g.codigo) = (a.anyo, btrim(a.grupo)) WHERE btrim(a.grupo) <> '' AND g.codigo IS NULL"),
     ("calificaciones.alumno -> alumnos",
      "SELECT count(*) FROM calificaciones c WHERE NOT EXISTS "
-     "(SELECT 1 FROM alumnos a WHERE a.anyo = c.anyo AND a.\"NIA\" = c.alumno)"),
+     "(SELECT 1 FROM alumnos a WHERE a.anyo = c.anyo AND a.nia = c.alumno)"),
 ]
 
 
 def validar_sql(conexion) -> dict[str, int]:
-    """Huérfanos según la propia base de datos (con NIA original, antes de anonimizar)."""
+    """Huérfanos según la propia base de datos (con NIA original, antes de anonimizar).
+
+    Las claves de origen no existen (sin PK ni FK): la comprobación las reconstruye con anyo.
+    """
     resultado = {}
     with conexion.cursor() as cur:
         for nombre, consulta in CONSULTAS_INTEGRIDAD:
@@ -171,7 +203,7 @@ def main() -> int:
             datos[tabla] = extraer_tabla(conexion, tabla)
         informar("SQL", validar_sql(conexion))
         for tabla, filas in datos.items():
-            anonimizar_filas(filas, anonimizar)
+            limpiar_y_anonimizar(tabla, filas, anonimizar)
             guardar(filas, tabla)
         sin_grupo = sum(1 for r in datos["alumnos"] if not r["grupo"])
         logger.info("Alumnos sin grupo asignado en el origen: %d (no se consideran huérfanos)", sin_grupo)

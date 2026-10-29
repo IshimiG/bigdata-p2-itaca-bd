@@ -19,3 +19,9 @@ site/
 
 # Logs
 logs/
+
+# SQL del profesor (Aules): contienen datos personales aunque estén ofuscados
+sql/origen/
+
+# ZIP de entrega (se prepara en local)
+entrega/
