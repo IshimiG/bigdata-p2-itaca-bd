@@ -1,0 +1,21 @@
+2026-10-29 17:51:44,842 | INFO     | ingesta_itaca_bd | Conectado a localhost:5432/itaca_academico como lectura_bigdata
+2026-10-29 17:51:44,887 | INFO     | ingesta_itaca_bd | alumnos: 7193 filas leídas en 0.04 s
+2026-10-29 17:51:44,889 | INFO     | ingesta_itaca_bd | cursos: 413 filas leídas en 0.00 s
+2026-10-29 17:51:45,318 | INFO     | ingesta_itaca_bd | calificaciones: 106814 filas leídas en 0.43 s
+2026-10-29 17:51:45,324 | INFO     | ingesta_itaca_bd | contenidos: 1688 filas leídas en 0.01 s
+2026-10-29 17:51:45,325 | INFO     | ingesta_itaca_bd | grupos: 257 filas leídas en 0.00 s
+2026-10-29 17:51:45,409 | INFO     | ingesta_itaca_bd | [SQL] calificaciones.contenido -> contenidos: correcto
+2026-10-29 17:51:45,409 | INFO     | ingesta_itaca_bd | [SQL] alumnos.grupo -> grupos: correcto
+2026-10-29 17:51:45,409 | WARNING  | ingesta_itaca_bd | [SQL] calificaciones.alumno -> alumnos: 188 huérfanos
+2026-10-29 17:51:45,459 | INFO     | ingesta_itaca_bd | Guardados 7193 registros en data/raw/alumnos_2026-10-29.json
+2026-10-29 17:51:45,460 | INFO     | ingesta_itaca_bd | Guardados 413 registros en data/raw/cursos_2026-10-29.json
+2026-10-29 17:51:45,856 | INFO     | ingesta_itaca_bd | Guardados 106814 registros en data/raw/calificaciones_2026-10-29.json
+2026-10-29 17:51:45,861 | INFO     | ingesta_itaca_bd | Guardados 1688 registros en data/raw/contenidos_2026-10-29.json
+2026-10-29 17:51:45,862 | INFO     | ingesta_itaca_bd | Guardados 257 registros en data/raw/grupos_2026-10-29.json
+2026-10-29 17:51:45,862 | INFO     | ingesta_itaca_bd | Alumnos sin grupo asignado en el origen: 54 (no se consideran huérfanos)
+2026-10-29 17:51:45,881 | INFO     | ingesta_itaca_bd | [JSON] calificaciones.contenido -> contenidos: correcto
+2026-10-29 17:51:45,881 | INFO     | ingesta_itaca_bd | [JSON] alumnos.grupo -> grupos: correcto
+2026-10-29 17:51:45,881 | WARNING  | ingesta_itaca_bd | [JSON] calificaciones.alumno -> alumnos: 188 huérfanos
+2026-10-29 17:51:45,881 | INFO     | ingesta_itaca_bd | NIA distintos anonimizados: 4304
+2026-10-29 17:51:45,881 | INFO     | ingesta_itaca_bd | Conexión cerrada
+2026-10-29 17:51:45,881 | INFO     | ingesta_itaca_bd | Ingesta completada en 1.05 s
