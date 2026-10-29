@@ -73,20 +73,7 @@ Los recuentos de la base y de los JSON coinciden con la suma de las cabeceras `�
 | `docker-compose.yml` | PostgreSQL 16 local (`bigdata-pg-itaca`), publicado solo en 127.0.0.1; monta `./sql` en `/sql` (solo lectura) |
 | `.env.example` | Plantilla de variables (el `.env` real no se versiona) |
 | `data/raw/`, `logs/`, `entrega/` | Salidas locales, fuera de Git |
-
-## Cómo desplegar el entorno
-
-```bash
-cp .env.example .env            # y cambia las contraseñas (DB_PASSWORD, DB_ADMIN_PASSWORD)
-# descarga el ZIP de SQL de la tarea de Aules y deja los 5 .sql en sql/origen/ (alumnos, calificaciones, contenidos, cursos, grupos)
-docker compose up -d            # PostgreSQL vacío (espera al healthcheck)
-./sql/cargar_origen.sh          # crea y carga las tablas con los SQL, da SELECT a lectura_bigdata y cuenta filas
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-python ingesta/ingesta_itaca_bd.py
-```
-
-PostgreSQL queda en `localhost:5432` (si lo tienes ocupado, cambia `DB_PORT` en `.env`). `LOG_LEVEL` (`DEBUG`, `INFO`...) controla el detalle del log. Para empezar de cero: `docker compose down -v` (borra el volumen de este proyecto) y repetir los pasos.
+| `scripts/` | Trabajo anterior de este repo (carga de datos de Aules en `bigdata-postgres` con `levantar.sh` y `cargar_datos.sh`, y exportación de calificaciones a CSV). Usa su propio `docker-compose` y variables `POSTGRES_*` de la versión previa, así que no se usa en esta práctica; se conserva sin cambios |
 
 ## Requisitos
 
